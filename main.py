@@ -1,15 +1,23 @@
-from typing import Union
+from groq import Groq
+from dotenv import load_dotenv
 
-from fastapi import FastAPI
+load_dotenv()
 
-app = FastAPI()
+client = Groq()
+completion = client.chat.completions.create(
+    model="meta-llama/llama-4-maverick-17b-128e-instruct",
+    messages=[
+      {
+        "role": "user",
+        "content": "Preten that you are a debt collector from a credit card company. And you are calling me to collect a debt. What questions will you ask me?"
+      }
+    ],
+    temperature=1,
+    max_completion_tokens=1024,
+    top_p=1,
+    stream=True,
+    stop=None
+)
 
-
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+for chunk in completion:
+    print(chunk.choices[0].delta.content or "", end="")
