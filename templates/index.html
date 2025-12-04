@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riverline VA Training</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 1px solid #222;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .header h1 span {
+            color: #6366f1;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        /* Control Panel */
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #5558e3, #7c4fe8);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: #1a1a1a;
+            color: #888;
+            border: 1px solid #333;
+        }
+
+        .btn-secondary:hover {
+            background: #222;
+            color: #fff;
+            border-color: #444;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Conversation Area */
+        .conversation-area {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 500px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 100px 20px;
+            color: #666;
+        }
+
+        .welcome-message h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #888;
+        }
+
+        /* Status Banners */
+        .status-banner {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-banner.starting {
+            background: linear-gradient(135deg, #1e3a5f, #1e1e3f);
+            border: 1px solid #3b82f6;
+            color: #60a5fa;
+        }
+
+        /* Attempt Header */
+        .attempt-header {
+            background: #1a1a1a;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #6366f1;
+        }
+
+        .attempt-header h3 {
+            color: #a5b4fc;
+            font-size: 1.2rem;
+        }
+
+        /* Messages */
+        .message {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 10px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.collector {
+            background: linear-gradient(135deg, #1a2744, #1a1a2e);
+            border: 1px solid #2563eb;
+            margin-right: 50px;
+        }
+
+        .message.defaulter {
+            background: linear-gradient(135deg, #2d1f1f, #1a1a1a);
+            border: 1px solid #dc2626;
+            margin-left: 50px;
+        }
+
+        .message-header {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .message.collector .message-header {
+            color: #60a5fa;
+        }
+
+        .message.defaulter .message-header {
+            color: #f87171;
+        }
+
+        .message-header .icon {
+            font-size: 1.2rem;
+        }
+
+        .message-content {
+            color: #d1d5db;
+            line-height: 1.6;
+        }
+
+        /* Judge Section */
+        .judge-section {
+            margin: 25px 0;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .judge-header {
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        /* Verdict Card */
+        .verdict-card {
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .verdict-card.pass {
+            background: linear-gradient(135deg, #064e3b, #0a2e1f);
+            border: 1px solid #10b981;
+        }
+
+        .verdict-card.fail {
+            background: linear-gradient(135deg, #4c1d1d, #2a1a1a);
+            border: 1px solid #ef4444;
+        }
+
+        .verdict-header {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .verdict-card.pass .verdict-header {
+            color: #34d399;
+        }
+
+        .verdict-card.fail .verdict-header {
+            color: #f87171;
+        }
+
+        .verdict-feedback {
+            color: #d1d5db;
+            font-size: 1rem;
+            margin-bottom: 8px;
+        }
+
+        .verdict-hangup {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        /* Optimizer Section */
+        .optimizer-section {
+            margin: 25px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #2d2a1a, #1a1a1a);
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .optimizer-header {
+            color: #fbbf24;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        /* New Prompt Card */
+        .new-prompt-card {
+            margin: 20px 0;
+            padding: 20px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 10px;
+        }
+
+        .new-prompt-card h4 {
+            color: #a5b4fc;
+            margin-bottom: 15px;
+        }
+
+        .new-prompt-card pre {
+            background: #0a0a0a;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            color: #9ca3af;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Success/Failure Banners */
+        .success-banner {
+            margin: 30px 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #064e3b, #0a2e1f);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .success-banner h2 {
+            color: #34d399;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .success-banner p {
+            color: #a7f3d0;
+            font-size: 1.1rem;
+        }
+
+        .failure-banner {
+            margin: 30px 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #4c1d1d, #2a1a1a);
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .failure-banner h2 {
+            color: #f87171;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .failure-banner p {
+            color: #fca5a5;
+            font-size: 1.1rem;
+        }
+
+        /* Final Prompt */
+        .final-prompt {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a2e1f, #0a1a0f);
+            border: 1px solid #10b981;
+            border-radius: 10px;
+        }
+
+        .final-prompt h4 {
+            color: #34d399;
+            margin-bottom: 15px;
+        }
+
+        .final-prompt pre {
+            background: #0a0a0a;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            color: #9ca3af;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        /* Divider */
+        .divider {
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #333, transparent);
+            margin: 30px 0;
+        }
+
+        /* Loading indicator */
+        .htmx-request .btn-primary {
+            position: relative;
+            color: transparent;
+        }
+
+        .htmx-request .btn-primary::after {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Scrollbar */
+        .conversation-area::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .conversation-area::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .conversation-area::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        .conversation-area::-webkit-scrollbar-thumb:hover {
+            background: #444;
+        }
+
+        /* Info Cards */
+        .info-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        .info-card {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .info-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .info-card h4 {
+            color: #888;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .info-card p {
+            color: #fff;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Riverline <span>VA Training</span></h1>
+            <p>Self-Improving Debt Collection Agent with AI-Powered Compliance</p>
+        </div>
+
+        <div class="control-panel">
+            <button class="btn btn-primary" 
+                    hx-post="/start-training" 
+                    hx-target="#conversation-area"
+                    hx-swap="innerHTML">
+                🚀 Start Training
+            </button>
+            <button class="btn btn-secondary"
+                    hx-post="/reset"
+                    hx-target="#conversation-area"
+                    hx-swap="innerHTML">
+                🔄 Reset
+            </button>
+        </div>
+
+        <div id="conversation-area" class="conversation-area">
+            <div class="welcome-message">
+                <h3>🎯 Ready to Train</h3>
+                <p>Click "Start Training" to begin the self-improving training loop.</p>
+                <p style="margin-top: 15px; font-size: 0.9rem;">
+                    The agent will attempt to pass compliance checks, learning from failures.
+                </p>
+            </div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-card">
+                <div class="icon">🏦</div>
+                <h4>Debt Collector</h4>
+                <p>Llama 4 Maverick</p>
+            </div>
+            <div class="info-card">
+                <div class="icon">👤</div>
+                <h4>Defaulter</h4>
+                <p>GPT-OSS-120B</p>
+            </div>
+            <div class="info-card">
+                <div class="icon">⚖️</div>
+                <h4>Judge</h4>
+                <p>Gemini 2.0 Flash</p>
+            </div>
+            <div class="info-card">
+                <div class="icon">🔧</div>
+                <h4>Optimizer</h4>
+                <p>Gemini 2.0 Flash</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

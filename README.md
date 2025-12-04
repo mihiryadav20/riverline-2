@@ -105,7 +105,7 @@ This project simulates realistic debt collection conversations using two differe
 ### Installation
 ```bash
 source venv/bin/activate
-pip install groq python-dotenv google-generativeai
+pip install groq python-dotenv google-generativeai flask
 ```
 
 ### Environment Variables
@@ -121,7 +121,14 @@ GEMINI_API_KEY=your_google_generative_ai_key_here
 
 ## Usage
 
-### Run Full Training Loop with Auto-Optimization
+### Option 1: Web UI (Recommended)
+```bash
+source venv/bin/activate
+python app.py
+```
+Then open your browser to **http://localhost:5000**
+
+### Option 2: CLI Training Loop
 ```bash
 source venv/bin/activate
 python main.py
@@ -135,7 +142,20 @@ This will:
 5. **Repeat**: Until PASS or max attempts reached
 6. **Success**: Display final optimized prompt
 
-### Example Output
+### Web UI Features
+The web interface provides a real-time, interactive experience:
+
+- **Dark theme** with black background and modern styling
+- **Live streaming** - Watch conversations unfold in real-time
+- **Color-coded messages**:
+  - 🏦 Blue for Debt Collector
+  - 👤 Red for Defaulter (Alex)
+- **Judge verdicts** with ✅ PASS / ❌ FAIL indicators
+- **Optimizer feedback** showing improved prompts
+- **Model info cards** displaying which AI models are used
+- **Start Training** and **Reset** buttons for easy control
+
+### CLI Example Output
 ```
 🚀 STARTING TRAINING LOOP
 
@@ -225,6 +245,25 @@ Feedback: Perfect compliance, empathetic, acknowledged hardship...
 | Judge | Gemini | gemini-2.0-flash-exp | Evaluate compliance |
 | Optimizer | Gemini | gemini-2.0-flash-exp | Rewrite prompts |
 
+## Project Files
+
+| File | Purpose |
+|------|---------|
+| `main.py` | CLI-based training loop (command-line interface) |
+| `app.py` | Flask web server with HTMX streaming |
+| `templates/index.html` | Dark-themed web UI with real-time updates |
+| `.env` | API keys (Groq & Gemini) |
+| `README.md` | This documentation |
+
+## Technology Stack
+
+- **Backend**: Python 3.12, Flask, Groq API, Google Generative AI
+- **Frontend**: HTML5, CSS3, HTMX (for real-time updates)
+- **Styling**: Dark theme with modern gradients and animations
+- **APIs**: 
+  - Groq (Llama 4 Maverick, GPT-OSS-120B)
+  - Google Generative AI (Gemini 2.0 Flash)
+
 ## Future Enhancements
 - Add logging and conversation transcripts to files
 - Test with different model combinations
@@ -235,3 +274,5 @@ Feedback: Perfect compliance, empathetic, acknowledged hardship...
 - Create analytics dashboard showing improvement over attempts
 - Support for multiple debt scenarios (different amounts, timeframes)
 - Batch processing for testing multiple scenarios
+- Export training results as PDF reports
+- Multi-language support for international debt collection scenarios
