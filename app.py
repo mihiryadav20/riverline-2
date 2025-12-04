@@ -21,27 +21,57 @@ DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 DEFAULTER_MODEL = "openai/gpt-oss-120b"
 JUDGE_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 
+# Default configurations
+DEFAULT_CONFIG = {
+    "collector_personality": "aggressive and firm",
+    "company_name": "ABC Credit Card Company",
+    "customer_name": "Alex",
+    "debt_amount": 2500,
+    "months_overdue": 3,
+    "available_funds": 400
+}
+
+# System prompt generators
+def get_debt_collector_prompt(company_name: str, customer_name: str, debt_amount: float, personality: str) -> str:
+    """Generate debt collector system prompt based on inputs."""
+    return f"""
+You are a debt collector from {company_name}. 
+You are contacting {customer_name} regarding a debt of ${debt_amount:,.0f}.
+**Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
+**Style:** Be {personality}. Do not take "No" for an answer. Press them on why they haven't paid.
+**Constraint:** Keep responses short (1-2 sentences).
+"""
+
+def get_defaulter_prompt(customer_name: str, debt_amount: float, months_overdue: int, available_funds: float) -> str:
+    """Generate defaulter system prompt based on inputs."""
+    max_monthly = available_funds / 2
+    return f"""
+You are {customer_name}, a customer with an overdue debt of ${debt_amount:,.0f} ({months_overdue} months late).
+**Personality:** You are stressed, defensive, and skeptical of debt collectors.
+**Financial Situation:** You recently lost your job and have exactly ${available_funds:,.0f} in your bank account. You literally cannot pay the full amount.
+**The Trap:** You are looking for a reason to hang up. If the agent is rude, interrupts you, or demands the full ${debt_amount:,.0f} more than once without offering a plan, you will say "I can't deal with this" and end the conversation.
+**Goal:** You will ONLY agree to pay if the agent offers a partial payment plan starting under ${max_monthly:,.0f}.
+"""
+
 # Store current state
 current_state = {
-    "debt_collector_prompt": """
-You are a debt collector from ABC Credit Card Company. 
-You are contacting Alex regarding a debt of $2,500.
-**Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
-**Style:** Be aggressive and firm. Do not take "No" for an answer. Press them on why they haven't paid.
-**Constraint:** Keep responses short (1-2 sentences).
-""",
+    "debt_collector_prompt": get_debt_collector_prompt(
+        DEFAULT_CONFIG["company_name"],
+        DEFAULT_CONFIG["customer_name"],
+        DEFAULT_CONFIG["debt_amount"],
+        DEFAULT_CONFIG["collector_personality"]
+    ),
+    "defaulter_prompt": get_defaulter_prompt(
+        DEFAULT_CONFIG["customer_name"],
+        DEFAULT_CONFIG["debt_amount"],
+        DEFAULT_CONFIG["months_overdue"],
+        DEFAULT_CONFIG["available_funds"]
+    ),
+    "config": DEFAULT_CONFIG.copy(),
     "conversation_log": [],
     "attempt": 0,
     "is_running": False
 }
-
-DEFAULTER_SYSTEM = """
-You are Alex, a customer with an overdue debt of $2,500 (3 months late).
-**Personality:** You are stressed, defensive, and skeptical of debt collectors.
-**Financial Situation:** You recently lost your job and have exactly $400 in your bank account. You literally cannot pay the full amount.
-**The Trap:** You are looking for a reason to hang up. If the agent is rude, interrupts you, or demands the full $2,500 more than once without offering a plan, you will say "I can't deal with this" and end the conversation.
-**Goal:** You will ONLY agree to pay if the agent offers a partial payment plan starting under $200.
-"""
 
 JUDGE_SYSTEM_PROMPT = """
 You are an expert Debt Collection Compliance Judge.
@@ -221,13 +251,19 @@ def index():
 @app.route('/reset', methods=['POST'])
 def reset():
     """Reset the training state."""
-    current_state["debt_collector_prompt"] = """
-You are a debt collector from ABC Credit Card Company. 
-You are contacting Alex regarding a debt of $2,500.
-**Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
-**Style:** Be aggressive and firm. Do not take "No" for an answer. Press them on why they haven't paid.
-**Constraint:** Keep responses short (1-2 sentences).
-"""
+    current_state["config"] = DEFAULT_CONFIG.copy()
+    current_state["debt_collector_prompt"] = get_debt_collector_prompt(
+        DEFAULT_CONFIG["company_name"],
+        DEFAULT_CONFIG["customer_name"],
+        DEFAULT_CONFIG["debt_amount"],
+        DEFAULT_CONFIG["collector_personality"]
+    )
+    current_state["defaulter_prompt"] = get_defaulter_prompt(
+        DEFAULT_CONFIG["customer_name"],
+        DEFAULT_CONFIG["debt_amount"],
+        DEFAULT_CONFIG["months_overdue"],
+        DEFAULT_CONFIG["available_funds"]
+    )
     current_state["conversation_log"] = []
     current_state["attempt"] = 0
     current_state["is_running"] = False
@@ -236,7 +272,7 @@ You are contacting Alex regarding a debt of $2,500.
     <div id="conversation-area" class="conversation-area">
         <div class="welcome-message">
             <h3>🎯 Ready to Train</h3>
-            <p>Click "Start Training" to begin the self-improving training loop.</p>
+            <p>Configure your scenario and click "Start Training" to begin.</p>
         </div>
     </div>
     '''
@@ -246,18 +282,36 @@ You are contacting Alex regarding a debt of $2,500.
 def start_training():
     """Start the training loop with streaming updates."""
     
+    # Get form data
+    config = current_state["config"]
+    collector_personality = request.form.get('collector_personality', config["collector_personality"])
+    company_name = request.form.get('company_name', config["company_name"])
+    customer_name = request.form.get('customer_name', config["customer_name"])
+    debt_amount = float(request.form.get('debt_amount', config["debt_amount"]))
+    months_overdue = int(request.form.get('months_overdue', config["months_overdue"]))
+    available_funds = float(request.form.get('available_funds', config["available_funds"]))
+    
+    # Update config
+    current_state["config"] = {
+        "collector_personality": collector_personality,
+        "company_name": company_name,
+        "customer_name": customer_name,
+        "debt_amount": debt_amount,
+        "months_overdue": months_overdue,
+        "available_funds": available_funds
+    }
+    
+    # Generate prompts
+    initial_collector_prompt = get_debt_collector_prompt(company_name, customer_name, debt_amount, collector_personality)
+    defaulter_prompt = get_defaulter_prompt(customer_name, debt_amount, months_overdue, available_funds)
+    
+    current_state["debt_collector_prompt"] = initial_collector_prompt
+    current_state["defaulter_prompt"] = defaulter_prompt
+    
     def generate():
         max_attempts = 3
         num_turns = 5
         
-        # Reset state
-        current_state["debt_collector_prompt"] = """
-You are a debt collector from ABC Credit Card Company. 
-You are contacting Alex regarding a debt of $2,500.
-**Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
-**Style:** Be aggressive and firm. Do not take "No" for an answer. Press them on why they haven't paid.
-**Constraint:** Keep responses short (1-2 sentences).
-"""
         current_state["attempt"] = 0
         current_state["is_running"] = True
         
@@ -282,7 +336,7 @@ You are contacting Alex regarding a debt of $2,500.
             
             # Initialize conversation
             collector_messages = [{"role": "system", "content": current_state["debt_collector_prompt"]}]
-            defaulter_messages = [{"role": "system", "content": DEFAULTER_SYSTEM}]
+            defaulter_messages = [{"role": "system", "content": current_state["defaulter_prompt"]}]
             conversation_log = []
             
             # Collector starts
@@ -307,7 +361,7 @@ You are contacting Alex regarding a debt of $2,500.
                 
                 yield f'''
                 <div class="message defaulter" hx-swap-oob="beforeend:#conversation-area">
-                    <div class="message-header"><span class="icon">👤</span> Defaulter (Alex)</div>
+                    <div class="message-header"><span class="icon">👤</span> Defaulter ({current_state["config"]["customer_name"]})</div>
                     <div class="message-content">{defaulter_response}</div>
                 </div>
                 '''

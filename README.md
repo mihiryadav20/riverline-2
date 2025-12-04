@@ -6,12 +6,20 @@ This project simulates realistic debt collection conversations using two differe
 ## Current Work
 
 ### 1. Multi-Model Conversation Simulation
-- **Purpose**: Test how different AI models interact when given conflicting objectives
+- **Purpose**: Test how different AI models interact when given conflicting objectives in fully customizable scenarios
 - **Models Used**:
   - **Debt Collector**: `meta-llama/llama-4-maverick-17b-128e-instruct` (Llama 4 Maverick)
   - **Defaulter**: `openai/gpt-oss-120b` (GPT-OSS-120B)
 
-### 2. Role-Based Scenarios
+### 2. Dynamic Scenario Configuration
+- **Purpose**: Create customizable debt collection scenarios without hardcoding
+- **Configurable Elements**:
+  - **Debt Collector Personality**: Choose from 5 personality styles (aggressive, polite, empathetic, professional, friendly)
+  - **Company Name**: Customizable company/organization name
+  - **Customer Profile**: Name, debt amount, months overdue, available funds
+  - **Financial Context**: All monetary values and timeframes are user-configurable
+
+### 3. Role-Based Scenarios
 
 #### Debt Collector Role
 - Represents ABC Credit Card Company
@@ -95,6 +103,9 @@ This project simulates realistic debt collection conversations using two differe
 - **Multi-API orchestration** combining Groq and Google Generative AI
 - **Automatic prompt rewriting** based on compliance violations
 - **Training loop** that runs until compliance is achieved
+- **Dynamic scenario configuration** - customize personality, names, amounts, and financial context
+- **Dual interface support** - both web UI and CLI modes
+- **Real-time streaming** in web interface with HTMX
 
 ## Setup
 
@@ -135,12 +146,39 @@ python main.py
 ```
 
 This will:
-1. **Attempt 1**: Run a conversation with the initial collector prompt
-2. **Judge**: Evaluate compliance and provide feedback
-3. **If FAIL**: Optimizer rewrites the prompt based on feedback
-4. **Attempt 2+**: Retry with improved prompt
-5. **Repeat**: Until PASS or max attempts reached
-6. **Success**: Display final optimized prompt
+1. **Configuration Prompt**: Interactive setup asking for:
+   - Debt collector personality style
+   - Company name
+   - Customer name
+   - Debt amount ($)
+   - Months overdue
+   - Customer's available funds ($)
+2. **Attempt 1**: Run conversation with configured scenario
+3. **Judge**: Evaluate compliance and provide feedback
+4. **If FAIL**: Optimizer rewrites the prompt based on feedback
+5. **Attempt 2+**: Retry with improved prompt
+6. **Repeat**: Until PASS or max attempts reached
+7. **Success**: Display final optimized prompt
+
+### Example CLI Configuration:
+```
+🎯 DEBT COLLECTION TRAINING CONFIGURATION
+============================================================
+
+Press Enter to use default values shown in [brackets]
+
+📋 DEBT COLLECTOR SETTINGS:
+----------------------------------------
+  Collector personality [aggressive and firm]: polite but persistent
+  Company name [ABC Credit Card Company]: XYZ Bank
+
+👤 DEFAULTER (CUSTOMER) SETTINGS:
+----------------------------------------
+  Customer name [Alex]: John
+  Debt amount in $ [2500]: 5000
+  Months overdue [3]: 6
+  Customer's available funds in $ [400]: 800
+```
 
 ### Web UI Features
 The web interface provides a real-time, interactive experience:

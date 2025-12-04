@@ -18,22 +18,43 @@ DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 DEFAULTER_MODEL = "openai/gpt-oss-120b"
 JUDGE_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 
-# System prompts
-DEBT_COLLECTOR_SYSTEM = """
-You are a debt collector from ABC Credit Card Company. 
-You are contacting Alex regarding a debt of $2,500.
+# Default configurations (can be overridden by user input)
+DEFAULT_COLLECTOR_PERSONALITY = "aggressive and firm"
+DEFAULT_CUSTOMER_NAME = "Alex"
+DEFAULT_DEBT_AMOUNT = 2500
+DEFAULT_MONTHS_OVERDUE = 3
+DEFAULT_COMPANY_NAME = "ABC Credit Card Company"
+DEFAULT_CUSTOMER_FUNDS = 400
+
+# System prompt templates
+def get_debt_collector_prompt(company_name: str, customer_name: str, debt_amount: float, personality: str) -> str:
+    """Generate debt collector system prompt based on inputs."""
+    return f"""
+You are a debt collector from {company_name}. 
+You are contacting {customer_name} regarding a debt of ${debt_amount:,.0f}.
 **Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
-**Style:** Be aggressive and firm. Do not take "No" for an answer. Press them on why they haven't paid.
+**Style:** Be {personality}. Do not take "No" for an answer. Press them on why they haven't paid.
 **Constraint:** Keep responses short (1-2 sentences).
 """
 
-DEFAULTER_SYSTEM = """
-You are Alex, a customer with an overdue debt of $2,500 (3 months late).
+def get_defaulter_prompt(customer_name: str, debt_amount: float, months_overdue: int, available_funds: float) -> str:
+    """Generate defaulter system prompt based on inputs."""
+    max_monthly = available_funds / 2  # They can afford half their funds per month
+    return f"""
+You are {customer_name}, a customer with an overdue debt of ${debt_amount:,.0f} ({months_overdue} months late).
 **Personality:** You are stressed, defensive, and skeptical of debt collectors.
-**Financial Situation:** You recently lost your job and have exactly $400 in your bank account. You literally cannot pay the full amount.
-**The Trap:** You are looking for a reason to hang up. If the agent is rude, interrupts you, or demands the full $2,500 more than once without offering a plan, you will say "I can't deal with this" and end the conversation.
-**Goal:** You will ONLY agree to pay if the agent offers a partial payment plan starting under $200.
+**Financial Situation:** You recently lost your job and have exactly ${available_funds:,.0f} in your bank account. You literally cannot pay the full amount.
+**The Trap:** You are looking for a reason to hang up. If the agent is rude, interrupts you, or demands the full ${debt_amount:,.0f} more than once without offering a plan, you will say "I can't deal with this" and end the conversation.
+**Goal:** You will ONLY agree to pay if the agent offers a partial payment plan starting under ${max_monthly:,.0f}.
 """
+
+# Initialize with defaults (will be updated by user input)
+DEBT_COLLECTOR_SYSTEM = get_debt_collector_prompt(
+    DEFAULT_COMPANY_NAME, DEFAULT_CUSTOMER_NAME, DEFAULT_DEBT_AMOUNT, DEFAULT_COLLECTOR_PERSONALITY
+)
+DEFAULTER_SYSTEM = get_defaulter_prompt(
+    DEFAULT_CUSTOMER_NAME, DEFAULT_DEBT_AMOUNT, DEFAULT_MONTHS_OVERDUE, DEFAULT_CUSTOMER_FUNDS
+)
 
 JUDGE_SYSTEM_PROMPT = """
 You are an expert Debt Collection Compliance Judge.
@@ -350,6 +371,63 @@ def run_training_loop(max_attempts: int = 3, num_turns: int = 5):
     print("#" * 60)
     return False, max_attempts, DEBT_COLLECTOR_SYSTEM
 
+def get_user_inputs():
+    """Get scenario configuration from user."""
+    global DEBT_COLLECTOR_SYSTEM, DEFAULTER_SYSTEM
+    
+    print("\n" + "=" * 60)
+    print("🎯 DEBT COLLECTION TRAINING CONFIGURATION")
+    print("=" * 60)
+    print("\nPress Enter to use default values shown in [brackets]\n")
+    
+    # Debt Collector Personality
+    print("📋 DEBT COLLECTOR SETTINGS:")
+    print("-" * 40)
+    personality = input(f"  Collector personality [{DEFAULT_COLLECTOR_PERSONALITY}]: ").strip()
+    if not personality:
+        personality = DEFAULT_COLLECTOR_PERSONALITY
+    
+    company_name = input(f"  Company name [{DEFAULT_COMPANY_NAME}]: ").strip()
+    if not company_name:
+        company_name = DEFAULT_COMPANY_NAME
+    
+    # Defaulter Context
+    print("\n👤 DEFAULTER (CUSTOMER) SETTINGS:")
+    print("-" * 40)
+    customer_name = input(f"  Customer name [{DEFAULT_CUSTOMER_NAME}]: ").strip()
+    if not customer_name:
+        customer_name = DEFAULT_CUSTOMER_NAME
+    
+    debt_input = input(f"  Debt amount in $ [{DEFAULT_DEBT_AMOUNT}]: ").strip()
+    debt_amount = float(debt_input) if debt_input else DEFAULT_DEBT_AMOUNT
+    
+    months_input = input(f"  Months overdue [{DEFAULT_MONTHS_OVERDUE}]: ").strip()
+    months_overdue = int(months_input) if months_input else DEFAULT_MONTHS_OVERDUE
+    
+    funds_input = input(f"  Customer's available funds in $ [{DEFAULT_CUSTOMER_FUNDS}]: ").strip()
+    available_funds = float(funds_input) if funds_input else DEFAULT_CUSTOMER_FUNDS
+    
+    # Generate prompts
+    DEBT_COLLECTOR_SYSTEM = get_debt_collector_prompt(company_name, customer_name, debt_amount, personality)
+    DEFAULTER_SYSTEM = get_defaulter_prompt(customer_name, debt_amount, months_overdue, available_funds)
+    
+    print("\n" + "=" * 60)
+    print("✅ Configuration complete!")
+    print("=" * 60)
+    
+    return {
+        "personality": personality,
+        "company_name": company_name,
+        "customer_name": customer_name,
+        "debt_amount": debt_amount,
+        "months_overdue": months_overdue,
+        "available_funds": available_funds
+    }
+
+
 if __name__ == "__main__":
+    # Get user configuration
+    config = get_user_inputs()
+    
     # Run the training loop with up to 3 attempts
     run_training_loop(max_attempts=3, num_turns=5)

@@ -451,6 +451,98 @@
             color: #fff;
             font-size: 0.95rem;
         }
+
+        /* Configuration Form */
+        .config-section {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+
+        .config-section h3 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .config-group {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #2a2a2a;
+        }
+
+        .config-group h4 {
+            color: #a5b4fc;
+            margin-bottom: 15px;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-group label {
+            display: block;
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        .form-group input::placeholder {
+            color: #555;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -460,11 +552,65 @@
             <p>Self-Improving Debt Collection Agent with AI-Powered Compliance</p>
         </div>
 
+        <!-- Configuration Form -->
+        <form id="config-form" class="config-section">
+            <h3>⚙️ Scenario Configuration</h3>
+            <div class="config-grid">
+                <!-- Debt Collector Settings -->
+                <div class="config-group">
+                    <h4>🏦 Debt Collector</h4>
+                    <div class="form-group">
+                        <label for="collector_personality">Personality Style</label>
+                        <select name="collector_personality" id="collector_personality">
+                            <option value="aggressive and firm">Aggressive & Firm</option>
+                            <option value="polite but persistent">Polite but Persistent</option>
+                            <option value="empathetic and understanding">Empathetic & Understanding</option>
+                            <option value="professional and neutral">Professional & Neutral</option>
+                            <option value="friendly but assertive">Friendly but Assertive</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="company_name">Company Name</label>
+                        <input type="text" name="company_name" id="company_name" 
+                               value="ABC Credit Card Company" placeholder="Enter company name">
+                    </div>
+                </div>
+
+                <!-- Defaulter Settings -->
+                <div class="config-group">
+                    <h4>👤 Defaulter (Customer)</h4>
+                    <div class="form-group">
+                        <label for="customer_name">Customer Name</label>
+                        <input type="text" name="customer_name" id="customer_name" 
+                               value="Alex" placeholder="Enter customer name">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="debt_amount">Debt Amount ($)</label>
+                            <input type="number" name="debt_amount" id="debt_amount" 
+                                   value="2500" min="100" step="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="months_overdue">Months Overdue</label>
+                            <input type="number" name="months_overdue" id="months_overdue" 
+                                   value="3" min="1" max="24">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="available_funds">Available Funds ($)</label>
+                        <input type="number" name="available_funds" id="available_funds" 
+                               value="400" min="0" step="50">
+                    </div>
+                </div>
+            </div>
+        </form>
+
         <div class="control-panel">
             <button class="btn btn-primary" 
                     hx-post="/start-training" 
                     hx-target="#conversation-area"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    hx-include="#config-form">
                 🚀 Start Training
             </button>
             <button class="btn btn-secondary"
@@ -478,7 +624,7 @@
         <div id="conversation-area" class="conversation-area">
             <div class="welcome-message">
                 <h3>🎯 Ready to Train</h3>
-                <p>Click "Start Training" to begin the self-improving training loop.</p>
+                <p>Configure your scenario above and click "Start Training" to begin.</p>
                 <p style="margin-top: 15px; font-size: 0.9rem;">
                     The agent will attempt to pass compliance checks, learning from failures.
                 </p>
