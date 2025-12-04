@@ -1,10 +1,17 @@
 from groq import Groq
 from dotenv import load_dotenv
 import json
+import os
+import google.generativeai as genai
 
 load_dotenv()
 
 client = Groq()
+
+# Initialize Gemini client
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if gemini_api_key:
+    genai.configure(api_key=gemini_api_key)
 
 # Model configurations
 DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
@@ -131,27 +138,41 @@ def run_conversation(num_turns: int = 5):
     return conversation_log
 
 def judge_conversation(conversation_log: list) -> dict:
-    """Judge the conversation for compliance."""
+    """Judge the conversation for compliance using Gemini API."""
     
     # Format conversation for the judge
     conversation_json = json.dumps(conversation_log, indent=2)
     
-    judge_messages = [
-        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-        {"role": "user", "content": conversation_json}
-    ]
+    # Combine system prompt and conversation for Gemini
+    full_prompt = f"{JUDGE_SYSTEM_PROMPT}\n\n{conversation_json}"
     
-    # Get judge's verdict with lower temperature for consistency
-    completion = client.chat.completions.create(
-        model=JUDGE_MODEL,
-        messages=judge_messages,
-        temperature=0.2,
-        max_completion_tokens=256,
-        top_p=1,
-        stream=False
-    )
-    
-    response = completion.choices[0].message.content
+    try:
+        # Use Gemini 2.0 Flash for judging
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        response_obj = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.2,
+                max_output_tokens=256,
+            )
+        )
+        response = response_obj.text
+    except Exception as e:
+        print(f"⚠️  Gemini API error: {e}. Falling back to Groq for Judge.")
+        # Fallback to Groq if Gemini fails
+        judge_messages = [
+            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+            {"role": "user", "content": conversation_json}
+        ]
+        completion = client.chat.completions.create(
+            model=JUDGE_MODEL,
+            messages=judge_messages,
+            temperature=0.2,
+            max_completion_tokens=256,
+            top_p=1,
+            stream=False
+        )
+        response = completion.choices[0].message.content
     
     # Parse JSON response
     try:
