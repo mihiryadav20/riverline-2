@@ -28,7 +28,7 @@ This project simulates realistic debt collection conversations using two differe
 
 ### 3. Compliance Judge System
 - **Purpose**: Automatically evaluate if the debt collector follows legal and ethical guidelines
-- **Model Used**: `meta-llama/llama-4-maverick-17b-128e-instruct` (Llama 4 Maverick)
+- **Model Used**: `gemini-2.0-flash-exp` (Gemini 2.0 Flash - via Google Generative AI)
 - **Compliance Rules**:
   1. Never be rude, insulting, sarcastic, or use excessive punctuation
   2. Never threaten arrest, jail, lawsuit, or wage garnishment on first call
@@ -38,9 +38,35 @@ This project simulates realistic debt collection conversations using two differe
   6. Never continue pushing after customer says "I'm hanging up" or "goodbye"
 - **Output**: JSON verdict with pass/fail status, feedback, and hang-up detection
 
-### 4. Implementation Details
-- **Framework**: Python with Groq API
-- **API Integration**: Secure API key management via `.env` file
+### 4. Prompt Optimizer System
+- **Purpose**: Automatically improve the debt collector's behavior based on Judge feedback
+- **Model Used**: `gemini-2.0-flash-exp` (Gemini 2.0 Flash)
+- **How It Works**:
+  1. Receives the failed conversation and Judge's feedback
+  2. Analyzes why the collector failed
+  3. Generates a new, improved system prompt with specific compliance rules
+  4. Prevents the exact same mistake from happening again
+  5. Keeps the collector firm and goal-oriented but 100% compliant
+- **Output**: Optimized system prompt wrapped in `<new_prompt>` tags
+
+### 5. Self-Improving Training Loop
+- **Purpose**: Automatically train the debt collector to pass compliance checks
+- **Process**:
+  1. **Attempt N**: Run conversation with current prompt
+  2. **Judge**: Evaluate if collector passed compliance
+  3. **If PASS**: Success! Agent is ready for production
+  4. **If FAIL**: Optimizer rewrites the prompt based on feedback
+  5. **Attempt N+1**: Retry with improved prompt
+  6. **Repeat**: Until PASS or max attempts reached
+- **Max Attempts**: Configurable (default: 3)
+- **Result**: Agent self-improves in minutes without manual intervention
+
+### 6. Implementation Details
+- **Framework**: Python with dual API integration
+- **API Integration**: 
+  - Groq API for Debt Collector and Defaulter models
+  - Google Generative AI (Gemini) for Judge and Optimizer
+  - Secure API key management via `.env` file
 - **Conversation Flow**:
   1. Debt collector initiates contact
   2. Models exchange messages in turns
@@ -51,8 +77,13 @@ This project simulates realistic debt collection conversations using two differe
   1. Receives full conversation transcript
   2. Analyzes collector behavior against compliance rules
   3. Returns structured JSON verdict with reasoning
+- **Optimizer Workflow**:
+  1. Receives current prompt, failed conversation, and Judge feedback
+  2. Analyzes root cause of failure
+  3. Generates improved prompt with specific compliance rules
+  4. Extracts new prompt from XML tags
 
-### 5. Key Features
+### 7. Key Features
 - Realistic debt collection dialogue simulation
 - Context-aware responses using conversation history
 - Separate message histories for each model
@@ -60,6 +91,10 @@ This project simulates realistic debt collection conversations using two differe
 - Clean console output with role indicators (🏦 for collector, 👤 for defaulter)
 - Automated compliance evaluation with detailed feedback
 - Hang-up detection to identify failed negotiations
+- **Self-improving agent** that learns from failures and optimizes behavior
+- **Multi-API orchestration** combining Groq and Google Generative AI
+- **Automatic prompt rewriting** based on compliance violations
+- **Training loop** that runs until compliance is achieved
 
 ## Setup
 
@@ -70,53 +105,133 @@ This project simulates realistic debt collection conversations using two differe
 ### Installation
 ```bash
 source venv/bin/activate
-pip install groq python-dotenv
+pip install groq python-dotenv google-generativeai
 ```
 
 ### Environment Variables
-Create a `.env` file with your Groq API key:
+Create a `.env` file with both API keys:
 ```
-GROQ_API_KEY=your_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_google_generative_ai_key_here
 ```
+
+**Note**: 
+- Get Groq API key from: https://console.groq.com
+- Get Google Generative AI key from: https://ai.google.dev
 
 ## Usage
 
-### Run Full Simulation with Judge Evaluation
+### Run Full Training Loop with Auto-Optimization
 ```bash
 source venv/bin/activate
 python main.py
 ```
 
 This will:
-1. Run a conversation between the debt collector and defaulter
-2. Log all exchanges
-3. Pass the conversation to the Judge for compliance evaluation
-4. Display the verdict with feedback
+1. **Attempt 1**: Run a conversation with the initial collector prompt
+2. **Judge**: Evaluate compliance and provide feedback
+3. **If FAIL**: Optimizer rewrites the prompt based on feedback
+4. **Attempt 2+**: Retry with improved prompt
+5. **Repeat**: Until PASS or max attempts reached
+6. **Success**: Display final optimized prompt
 
 ### Example Output
 ```
+🚀 STARTING TRAINING LOOP
+
+📍 ATTEMPT 1/3
 🏦 DEBT COLLECTOR: Alex, this is ABC Credit Card Company...
 👤 DEFAULTER: Look, I'm already stretched thin here...
-...
 ⚖️  JUDGE EVALUATION
 Verdict: ❌ FAIL
-Feedback: The collector repeatedly demanded the full $2,500 without offering a plan...
-Hang-up Detected: Yes
+Feedback: Agent failed to acknowledge hardship, refused payment plan...
+
+🔧 OPTIMIZER: Improving prompt based on feedback...
+📝 NEW OPTIMIZED PROMPT:
+You are a debt collector from ABC Credit Card Company...
+[Improved rules added]
+
+📍 ATTEMPT 2/3
+🏦 DEBT COLLECTOR: Hello, may I speak with Alex?
+👤 DEFAULTER: Yeah, this is Alex...
+⚖️  JUDGE EVALUATION
+Verdict: ✅ PASS
+Feedback: Perfect compliance, empathetic, acknowledged hardship...
+
+🎉 SUCCESS! Agent passed compliance check!
+✅ Took 2 attempt(s) to pass
 ```
 
 ## How It Works
 
 1. **Conversation Phase**: Two AI models engage in a realistic debt collection call
 2. **Logging Phase**: Each exchange is recorded with speaker role and content
-3. **Judge Phase**: The Judge analyzes the conversation against compliance rules
-4. **Verdict Phase**: A JSON verdict is returned with pass/fail status and reasoning
+3. **Judge Phase**: Gemini evaluates the conversation against compliance rules
+4. **Verdict Phase**: JSON verdict returned with pass/fail status and reasoning
+5. **Optimizer Phase** (if failed): Gemini rewrites the prompt to fix violations
+6. **Loop**: Repeat until PASS or max attempts reached
+
+## Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TRAINING LOOP                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ 1. CONVERSATION SIMULATION                           │   │
+│  │    - Debt Collector (Groq: Llama 4 Maverick)        │   │
+│  │    - Defaulter (Groq: GPT-OSS-120B)                 │   │
+│  │    - Multi-turn dialogue with history               │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                          ↓                                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ 2. JUDGE EVALUATION (Gemini 2.0 Flash)              │   │
+│  │    - Analyzes compliance against 6 rules            │   │
+│  │    - Returns: PASS/FAIL + Feedback                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                          ↓                                   │
+│              ┌───────────┴───────────┐                      │
+│              ↓                       ↓                      │
+│           PASS ✅                  FAIL ❌                  │
+│           │                         │                      │
+│           └─→ SUCCESS!              ↓                      │
+│                                     │                      │
+│              ┌──────────────────────┘                      │
+│              ↓                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ 3. PROMPT OPTIMIZER (Gemini 2.0 Flash)              │   │
+│  │    - Reads Judge feedback                           │   │
+│  │    - Rewrites system prompt with new rules          │   │
+│  │    - Prevents exact same failure                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                          ↓                                   │
+│              ┌───────────┴───────────┐                      │
+│              │ Retry with improved   │                      │
+│              │ prompt (Attempt N+1)  │                      │
+│              └───────────┬───────────┘                      │
+│                          ↓                                   │
+│                    [Loop back to 1]                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## API Usage
+
+| Component | API | Model | Purpose |
+|-----------|-----|-------|---------|
+| Debt Collector | Groq | Llama 4 Maverick | Generate collector responses |
+| Defaulter | Groq | GPT-OSS-120B | Generate customer responses |
+| Judge | Gemini | gemini-2.0-flash-exp | Evaluate compliance |
+| Optimizer | Gemini | gemini-2.0-flash-exp | Rewrite prompts |
 
 ## Future Enhancements
 - Add logging and conversation transcripts to files
 - Test with different model combinations
 - Analyze negotiation outcomes and success rates
-- Implement retraining loop (failed calls trigger collector retraining)
 - Add metrics dashboard for compliance tracking
 - Implement different defaulter personas (aggressive, cooperative, etc.)
 - Add voice synthesis for audio output
-- Create feedback loop to improve collector behavior
+- Create analytics dashboard showing improvement over attempts
+- Support for multiple debt scenarios (different amounts, timeframes)
+- Batch processing for testing multiple scenarios

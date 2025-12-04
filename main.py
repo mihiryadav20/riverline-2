@@ -67,6 +67,40 @@ Output ONLY valid JSON in this exact format, no extra text:
 Now judge this conversation:
 """
 
+OPTIMIZER_SYSTEM_PROMPT = """
+You are a Senior Prompt Engineer and Debt Collection Compliance Trainer.
+
+Your job is to take a FAILED debt collection conversation and permanently fix the collector's behavior by writing a BETTER system prompt.
+
+You will receive:
+1. The current (broken) system prompt used by the collector
+2. The full conversation that failed
+3. The Judge's exact feedback (one short sentence)
+
+Your task:
+- Understand exactly why the collector failed
+- Write a new system prompt that PREVENTS this exact failure from ever happening again
+- Keep the collector firm and goal-oriented (still wants the $2,500), but 100% compliant and professional
+- Add very specific rules to block the mistake
+- Never make the agent weak — just smarter and more compliant
+
+Rules for the new prompt:
+- Never use ALL CAPS, excessive !!!, or shouting
+- Never threaten legal action on first call
+- Always show empathy when customer mentions job loss or low funds
+- After one refusal, immediately offer a payment plan ≤ $200/month
+- If customer says they can only afford $400 total → accept partial settlement or low with $100–150/month plan
+- If customer says "I'm hanging up" → immediately say "I understand, have a good day" and end call
+
+Output ONLY the new full system prompt inside <new_prompt> tags. No explanations.
+
+Example of good fix:
+If Judge said: "Agent was rude and used capital letters"
+→ Add rule: "Never use ALL CAPS or multiple exclamation marks. Stay calm and professional."
+
+Now fix this one:
+"""
+
 def get_response(model: str, messages: list) -> str:
     """Get a response from the specified model."""
     completion = client.chat.completions.create(
@@ -192,6 +226,55 @@ def judge_conversation(conversation_log: list) -> dict:
     
     return verdict
 
+def optimize_prompt(current_prompt: str, conversation_log: list, judge_feedback: str) -> str:
+    """Optimize the debt collector's prompt based on Judge feedback using Gemini."""
+    
+    # Format the input for the optimizer
+    conversation_json = json.dumps(conversation_log, indent=2)
+    
+    optimizer_input = f"""
+Current System Prompt:
+{current_prompt}
+
+Failed Conversation:
+{conversation_json}
+
+Judge's Feedback:
+{judge_feedback}
+"""
+    
+    full_prompt = f"{OPTIMIZER_SYSTEM_PROMPT}\n{optimizer_input}"
+    
+    try:
+        # Use Gemini 2.0 Flash for optimization
+        model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        response_obj = model.generate_content(
+            full_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=1024,
+            )
+        )
+        response = response_obj.text
+        
+        # Extract the new prompt from <new_prompt> tags
+        start_tag = "<new_prompt>"
+        end_tag = "</new_prompt>"
+        start_idx = response.find(start_tag)
+        end_idx = response.find(end_tag)
+        
+        if start_idx != -1 and end_idx != -1:
+            new_prompt = response[start_idx + len(start_tag):end_idx].strip()
+            return new_prompt
+        else:
+            # If tags not found, return the whole response as prompt
+            print("⚠️  Could not find <new_prompt> tags, using full response")
+            return response.strip()
+            
+    except Exception as e:
+        print(f"⚠️  Optimizer error: {e}. Keeping current prompt.")
+        return current_prompt
+
 def run_with_judge(num_turns: int = 5):
     """Run conversation and then judge it."""
     
@@ -215,7 +298,58 @@ def run_with_judge(num_turns: int = 5):
     print()
     print("=" * 60)
     
-    return verdict
+    return verdict, conversation_log
+
+def run_training_loop(max_attempts: int = 3, num_turns: int = 5):
+    """Run the full training loop: Conversation → Judge → Optimize → Repeat until PASS."""
+    global DEBT_COLLECTOR_SYSTEM
+    
+    print("\n" + "#" * 60)
+    print("🚀 STARTING TRAINING LOOP")
+    print("#" * 60)
+    
+    for attempt in range(1, max_attempts + 1):
+        print(f"\n{'='*60}")
+        print(f"📍 ATTEMPT {attempt}/{max_attempts}")
+        print(f"{'='*60}\n")
+        
+        # Run conversation and get judge verdict
+        verdict, conversation_log = run_with_judge(num_turns)
+        
+        # Check if passed
+        if verdict.get("pass"):
+            print("\n" + "#" * 60)
+            print("🎉 SUCCESS! Agent passed compliance check!")
+            print(f"✅ Took {attempt} attempt(s) to pass")
+            print("#" * 60)
+            print("\n📋 FINAL OPTIMIZED PROMPT:")
+            print("-" * 40)
+            print(DEBT_COLLECTOR_SYSTEM)
+            print("-" * 40)
+            return True, attempt, DEBT_COLLECTOR_SYSTEM
+        
+        # If failed and not last attempt, optimize
+        if attempt < max_attempts:
+            print("\n" + "=" * 60)
+            print("🔧 OPTIMIZER: Improving prompt based on feedback...")
+            print("=" * 60)
+            
+            feedback = verdict.get('feedback', 'Unknown failure')
+            new_prompt = optimize_prompt(DEBT_COLLECTOR_SYSTEM, conversation_log, feedback)
+            
+            print("\n📝 NEW OPTIMIZED PROMPT:")
+            print("-" * 40)
+            print(new_prompt)
+            print("-" * 40)
+            
+            # Update the global prompt for next attempt
+            DEBT_COLLECTOR_SYSTEM = new_prompt
+    
+    print("\n" + "#" * 60)
+    print(f"❌ FAILED: Agent did not pass after {max_attempts} attempts")
+    print("#" * 60)
+    return False, max_attempts, DEBT_COLLECTOR_SYSTEM
 
 if __name__ == "__main__":
-    run_with_judge(num_turns=5)
+    # Run the training loop with up to 3 attempts
+    run_training_loop(max_attempts=3, num_turns=5)
