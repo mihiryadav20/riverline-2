@@ -8,7 +8,7 @@ This project simulates realistic debt collection conversations using two differe
 ### 1. Multi-Model Conversation Simulation
 - **Purpose**: Test how different AI models interact when given conflicting objectives in fully customizable scenarios
 - **Models Used**:
-  - **Debt Collector**: `meta-llama/llama-4-maverick-17b-128e-instruct` (Llama 4 Maverick)
+  - **Debt Collector Agent**: `meta-llama/llama-4-scout-17b-16e-instruct` (Llama 4 Scout)
   - **Defaulter**: `openai/gpt-oss-120b` (GPT-OSS-120B)
 
 ### 2. Dynamic Scenario Configuration
@@ -19,9 +19,23 @@ This project simulates realistic debt collection conversations using two differe
   - **Customer Profile**: Name, debt amount, months overdue, available funds
   - **Financial Context**: All monetary values and timeframes are user-configurable
 
-### 3. Role-Based Scenarios
+### 3. Text-to-Speech (TTS) Integration
+- **Purpose**: Generate audio for the entire conversation using ElevenLabs
+- **Features**:
+  - Automatic audio generation for each message (Debt Collector Agent and Customer)
+  - Single "🔊 Play Conversation" button plays entire dialogue sequentially
+  - Message highlighting during playback with auto-scroll
+  - Stop/pause functionality
+  - In-memory audio storage with unique IDs
+  - Graceful fallback when TTS is disabled or quota exceeded
+- **Configuration**:
+  - `TTS_ENABLED` flag in `app.py` (set to `True` to enable)
+  - Requires valid ElevenLabs API key with available credits
+  - Voice IDs: Both collector and customer use configurable voice IDs
 
-#### Debt Collector Role
+### 4. Role-Based Scenarios
+
+#### Debt Collector Agent Role
 - Represents ABC Credit Card Company
 - Objective: Collect full payment ($2,500) immediately
 - Style: Aggressive and firm
@@ -34,7 +48,7 @@ This project simulates realistic debt collection conversations using two differe
 - Exit Condition: Will hang up if agent is rude or demands full payment multiple times without offering a plan
 - Negotiation Threshold: Will only agree to payment plans under $200/month
 
-### 3. Compliance Judge System
+### 5. Compliance Judge System
 - **Purpose**: Automatically evaluate if the debt collector follows legal and ethical guidelines
 - **Model Used**: `gemini-2.0-flash-exp` (Gemini 2.0 Flash - via Google Generative AI)
 - **Compliance Rules**:
@@ -46,7 +60,7 @@ This project simulates realistic debt collection conversations using two differe
   6. Never continue pushing after customer says "I'm hanging up" or "goodbye"
 - **Output**: JSON verdict with pass/fail status, feedback, and hang-up detection
 
-### 4. Prompt Optimizer System
+### 6. Prompt Optimizer System
 - **Purpose**: Automatically improve the debt collector's behavior based on Judge feedback
 - **Model Used**: `gemini-2.0-flash-exp` (Gemini 2.0 Flash)
 - **How It Works**:
@@ -57,7 +71,7 @@ This project simulates realistic debt collection conversations using two differe
   5. Keeps the collector firm and goal-oriented but 100% compliant
 - **Output**: Optimized system prompt wrapped in `<new_prompt>` tags
 
-### 5. Self-Improving Training Loop
+### 7. Self-Improving Training Loop
 - **Purpose**: Automatically train the debt collector to pass compliance checks
 - **Process**:
   1. **Attempt N**: Run conversation with current prompt
@@ -69,20 +83,22 @@ This project simulates realistic debt collection conversations using two differe
 - **Max Attempts**: Configurable (default: 3)
 - **Result**: Agent self-improves in minutes without manual intervention
 
-### 6. Implementation Details
+### 8. Implementation Details
 - **Framework**: Python with dual API integration
 - **API Integration**: 
-  - Groq API for Debt Collector and Defaulter models
+  - Groq API for Debt Collector Agent and Defaulter models
   - Google Generative AI (Gemini) for Judge and Optimizer
+  - ElevenLabs API for Text-to-Speech audio generation
   - Secure API key management via `.env` file
 - **Conversation Flow**:
-  1. Debt collector initiates contact
+  1. Debt collector agent initiates contact
   2. Models exchange messages in turns
   3. Each model maintains conversation history for context
   4. Configurable number of conversation turns
   5. Conversation is logged and passed to Judge for evaluation
+  6. Audio generated for each message (if TTS enabled)
 - **Judge Evaluation**:
-  1. Receives full conversation transcript
+  1. Receives full conversation transcript with "Debt Collector Agent" role
   2. Analyzes collector behavior against compliance rules
   3. Returns structured JSON verdict with reasoning
 - **Optimizer Workflow**:
@@ -90,22 +106,30 @@ This project simulates realistic debt collection conversations using two differe
   2. Analyzes root cause of failure
   3. Generates improved prompt with specific compliance rules
   4. Extracts new prompt from XML tags
+- **Audio Playback**:
+  1. Single "🔊 Play Conversation" button in UI
+  2. Fetches audio sequence from `/audio-sequence` endpoint
+  3. Plays messages sequentially with 300ms gaps
+  4. Highlights current message during playback
+  5. Auto-scrolls to visible message
 
-### 7. Key Features
+### 9. Key Features
 - Realistic debt collection dialogue simulation
 - Context-aware responses using conversation history
 - Separate message histories for each model
 - Configurable conversation parameters (temperature, max tokens, turns)
-- Clean console output with role indicators (🏦 for collector, 👤 for defaulter)
+- Clean console output with role indicators (🏦 for Debt Collector Agent, 👤 for defaulter)
 - Automated compliance evaluation with detailed feedback
 - Hang-up detection to identify failed negotiations
 - **Self-improving agent** that learns from failures and optimizes behavior
-- **Multi-API orchestration** combining Groq and Google Generative AI
+- **Multi-API orchestration** combining Groq, Google Generative AI, and ElevenLabs
 - **Automatic prompt rewriting** based on compliance violations
 - **Training loop** that runs until compliance is achieved
 - **Dynamic scenario configuration** - customize personality, names, amounts, and financial context
 - **Dual interface support** - both web UI and CLI modes
 - **Real-time streaming** in web interface with HTMX
+- **Text-to-Speech audio generation** - ElevenLabs integration for conversation audio
+- **Single play button** - Play entire conversation sequentially with message highlighting
 
 ## Setup
 
@@ -116,19 +140,21 @@ This project simulates realistic debt collection conversations using two differe
 ### Installation
 ```bash
 source venv/bin/activate
-pip install groq python-dotenv google-generativeai flask
+pip install groq python-dotenv google-generativeai flask elevenlabs
 ```
 
 ### Environment Variables
-Create a `.env` file with both API keys:
+Create a `.env` file with all API keys:
 ```
 GROQ_API_KEY=your_groq_api_key_here
 GEMINI_API_KEY=your_google_generative_ai_key_here
+ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ```
 
 **Note**: 
 - Get Groq API key from: https://console.groq.com
 - Get Google Generative AI key from: https://ai.google.dev
+- Get ElevenLabs API key from: https://elevenlabs.io (optional, for TTS)
 
 ## Usage
 
@@ -186,11 +212,17 @@ The web interface provides a real-time, interactive experience:
 - **Dark theme** with black background and modern styling
 - **Live streaming** - Watch conversations unfold in real-time
 - **Color-coded messages**:
-  - 🏦 Blue for Debt Collector
-  - 👤 Red for Defaulter (Alex)
+  - 🏦 Blue for Debt Collector Agent
+  - 👤 Red for Defaulter (Customer)
+- **Audio playback**:
+  - 🔊 Single "Play Conversation" button plays entire dialogue
+  - Message highlighting during playback with auto-scroll
+  - Sequential audio with 300ms gaps between messages
+  - Stop/pause functionality
 - **Judge verdicts** with ✅ PASS / ❌ FAIL indicators
 - **Optimizer feedback** showing improved prompts
 - **Model info cards** displaying which AI models are used
+- **Configuration form** for customizing scenario parameters
 - **Start Training** and **Reset** buttons for easy control
 
 ### CLI Example Output
@@ -238,7 +270,7 @@ Feedback: Perfect compliance, empathetic, acknowledged hardship...
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐   │
 │  │ 1. CONVERSATION SIMULATION                           │   │
-│  │    - Debt Collector (Groq: Llama 4 Maverick)        │   │
+│  │    - Debt Collector (Groq: Llama 4 Scout)           │   │
 │  │    - Defaulter (Groq: GPT-OSS-120B)                 │   │
 │  │    - Multi-turn dialogue with history               │   │
 │  └──────────────────────────────────────────────────────┘   │
@@ -278,29 +310,31 @@ Feedback: Perfect compliance, empathetic, acknowledged hardship...
 
 | Component | API | Model | Purpose |
 |-----------|-----|-------|---------|
-| Debt Collector | Groq | Llama 4 Maverick | Generate collector responses |
+| Debt Collector Agent | Groq | Llama 4 Scout | Generate collector responses |
 | Defaulter | Groq | GPT-OSS-120B | Generate customer responses |
 | Judge | Gemini | gemini-2.0-flash-exp | Evaluate compliance |
 | Optimizer | Gemini | gemini-2.0-flash-exp | Rewrite prompts |
+| Text-to-Speech | ElevenLabs | eleven_multilingual_v2 | Generate audio for messages |
 
 ## Project Files
 
 | File | Purpose |
 |------|---------|
 | `main.py` | CLI-based training loop (command-line interface) |
-| `app.py` | Flask web server with HTMX streaming |
-| `templates/index.html` | Dark-themed web UI with real-time updates |
-| `.env` | API keys (Groq & Gemini) |
+| `app.py` | Flask web server with HTMX streaming and TTS integration |
+| `templates/index.html` | Dark-themed web UI with real-time updates and audio playback |
+| `.env` | API keys (Groq, Gemini, ElevenLabs) |
 | `README.md` | This documentation |
 
 ## Technology Stack
 
-- **Backend**: Python 3.12, Flask, Groq API, Google Generative AI
-- **Frontend**: HTML5, CSS3, HTMX (for real-time updates)
+- **Backend**: Python 3.12, Flask, Groq API, Google Generative AI, ElevenLabs TTS
+- **Frontend**: HTML5, CSS3, HTMX (for real-time updates), Web Audio API
 - **Styling**: Dark theme with modern gradients and animations
 - **APIs**: 
-  - Groq (Llama 4 Maverick, GPT-OSS-120B)
+  - Groq (Llama 4 Scout, GPT-OSS-120B)
   - Google Generative AI (Gemini 2.0 Flash)
+  - ElevenLabs (Text-to-Speech with multilingual support)
 
 ## Future Enhancements
 - Add logging and conversation transcripts to files

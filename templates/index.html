@@ -94,6 +94,32 @@
             cursor: not-allowed;
         }
 
+        .btn-play {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-play:hover:not(:disabled) {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-play.playing {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            animation: pulse 1s infinite;
+        }
+
+        .btn-play.playing:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            box-shadow: 0 5px 20px rgba(239, 68, 68, 0.4);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
         /* Conversation Area */
         .conversation-area {
             background: #111;
@@ -196,6 +222,12 @@
         .message-content {
             color: #d1d5db;
             line-height: 1.6;
+        }
+
+        /* Message highlight during audio playback */
+        .message.playing {
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+            border-color: #10b981;
         }
 
         /* Judge Section */
@@ -613,10 +645,14 @@
                     hx-include="#config-form">
                 🚀 Start Training
             </button>
+            <button id="playConversationBtn" class="btn btn-play" onclick="playFullConversation()" disabled>
+                🔊 Play Conversation
+            </button>
             <button class="btn btn-secondary"
                     hx-post="/reset"
                     hx-target="#conversation-area"
-                    hx-swap="innerHTML">
+                    hx-swap="innerHTML"
+                    onclick="resetAudio()">
                 🔄 Reset
             </button>
         </div>
@@ -634,8 +670,8 @@
         <div class="info-section">
             <div class="info-card">
                 <div class="icon">🏦</div>
-                <h4>Debt Collector</h4>
-                <p>Llama 4 Maverick</p>
+                <h4>Debt Collector Agent</h4>
+                <p>Llama 4 Scout</p>
             </div>
             <div class="info-card">
                 <div class="icon">👤</div>
@@ -648,11 +684,146 @@
                 <p>Gemini 2.0 Flash</p>
             </div>
             <div class="info-card">
-                <div class="icon">🔧</div>
-                <h4>Optimizer</h4>
-                <p>Gemini 2.0 Flash</p>
+                <div class="icon">🔊</div>
+                <h4>Voice</h4>
+                <p>ElevenLabs TTS</p>
             </div>
         </div>
     </div>
+
+    <!-- Hidden audio player -->
+    <audio id="audioPlayer" style="display: none;"></audio>
+
+    <script>
+        // Audio playback state
+        let audioQueue = [];
+        let currentIndex = 0;
+        let isPlaying = false;
+
+        // Play the full conversation
+        async function playFullConversation() {
+            const btn = document.getElementById('playConversationBtn');
+            
+            if (isPlaying) {
+                // Stop playback
+                stopPlayback();
+                return;
+            }
+            
+            // Fetch audio sequence from server
+            try {
+                const response = await fetch('/audio-sequence');
+                const data = await response.json();
+                audioQueue = data.audio_ids;
+                
+                if (audioQueue.length === 0) {
+                    alert('No audio available. Run a training session first.');
+                    return;
+                }
+                
+                isPlaying = true;
+                currentIndex = 0;
+                updatePlayButton();
+                playNextAudio();
+                
+            } catch (error) {
+                console.error('Error fetching audio sequence:', error);
+                alert('Error loading audio. Please try again.');
+            }
+        }
+
+        // Play next audio in queue
+        function playNextAudio() {
+            if (!isPlaying || currentIndex >= audioQueue.length) {
+                stopPlayback();
+                return;
+            }
+            
+            const player = document.getElementById('audioPlayer');
+            const audioId = audioQueue[currentIndex];
+            
+            // Highlight current message
+            highlightMessage(currentIndex);
+            
+            player.src = `/audio/${audioId}`;
+            player.play();
+            
+            player.onended = function() {
+                currentIndex++;
+                // Small delay between messages
+                setTimeout(playNextAudio, 300);
+            };
+            
+            player.onerror = function() {
+                console.error('Error playing audio:', audioId);
+                currentIndex++;
+                setTimeout(playNextAudio, 100);
+            };
+        }
+
+        // Highlight the current message being played
+        function highlightMessage(index) {
+            // Remove previous highlights
+            document.querySelectorAll('.message.playing').forEach(msg => {
+                msg.classList.remove('playing');
+            });
+            
+            // Get all messages and highlight the current one
+            const messages = document.querySelectorAll('.message');
+            if (messages[index]) {
+                messages[index].classList.add('playing');
+                messages[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Stop playback
+        function stopPlayback() {
+            const player = document.getElementById('audioPlayer');
+            player.pause();
+            player.currentTime = 0;
+            
+            isPlaying = false;
+            currentIndex = 0;
+            
+            // Remove all highlights
+            document.querySelectorAll('.message.playing').forEach(msg => {
+                msg.classList.remove('playing');
+            });
+            
+            updatePlayButton();
+        }
+
+        // Update play button state
+        function updatePlayButton() {
+            const btn = document.getElementById('playConversationBtn');
+            if (isPlaying) {
+                btn.innerHTML = '⏹️ Stop';
+                btn.classList.add('playing');
+            } else {
+                btn.innerHTML = '🔊 Play Conversation';
+                btn.classList.remove('playing');
+            }
+        }
+
+        // Reset audio state
+        function resetAudio() {
+            stopPlayback();
+            audioQueue = [];
+            const btn = document.getElementById('playConversationBtn');
+            btn.disabled = true;
+        }
+
+        // Enable play button when training completes
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.target.id === 'conversation-area') {
+                const hasEnded = document.querySelector('.success-banner, .failure-banner');
+                const btn = document.getElementById('playConversationBtn');
+                
+                if (hasEnded && btn) {
+                    btn.disabled = false;
+                }
+            }
+        });
+    </script>
 </body>
 </html>

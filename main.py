@@ -14,9 +14,9 @@ if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
 
 # Model configurations
-DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 DEFAULTER_MODEL = "openai/gpt-oss-120b"
-JUDGE_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+JUDGE_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Default configurations (can be overridden by user input)
 DEFAULT_COLLECTOR_PERSONALITY = "aggressive and firm"

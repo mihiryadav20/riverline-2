@@ -1,10 +1,13 @@
-from flask import Flask, render_template, request, Response
+from flask import Flask, render_template, request, Response, send_file, jsonify
 from groq import Groq
 from dotenv import load_dotenv
 import json
 import os
 import google.generativeai as genai
 import time
+import uuid
+import io
+from elevenlabs import ElevenLabs
 
 load_dotenv()
 
@@ -16,10 +19,26 @@ gemini_api_key = os.getenv("GEMINI_API_KEY")
 if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
 
+# Initialize ElevenLabs client
+elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+elevenlabs_client = None
+TTS_ENABLED = True  # Set to True when you have ElevenLabs credits available
+if elevenlabs_api_key and TTS_ENABLED:
+    elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
+
+# Voice IDs for different speakers (ElevenLabs pre-made voices)
+COLLECTOR_VOICE_ID = "bIHbv24MWmeRgasZH58o"  # Roger - collector voice
+CUSTOMER_VOICE_ID = "bIHbv24MWmeRgasZH58o"   # Will - customer voice
+
+# Store generated audio files
+audio_storage = {}
+# Store audio sequence for full conversation playback
+audio_sequence = []
+
 # Model configurations
-DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 DEFAULTER_MODEL = "openai/gpt-oss-120b"
-JUDGE_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+JUDGE_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # Default configurations
 DEFAULT_CONFIG = {
@@ -89,7 +108,7 @@ The customer is allowed to hang up if the agent breaks these rules — that is a
 
 Input format:
 [
-  {"role": "collector", "content": "Hello, this is Mike from..."},
+  {"role": "Debt Collector Agent", "content": "Hello, this is Mike from..."},
   {"role": "customer", "content": "I just lost my job..."},
   ...
 ]
@@ -151,6 +170,33 @@ def get_response(model: str, messages: list) -> str:
         stream=False
     )
     return completion.choices[0].message.content
+
+
+def generate_tts(text: str, voice_id: str) -> str:
+    """Generate TTS audio using ElevenLabs and return audio ID."""
+    if not elevenlabs_client:
+        return None
+    
+    try:
+        # Generate audio using ElevenLabs
+        audio_generator = elevenlabs_client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=text,
+            model_id="eleven_multilingual_v2",
+            output_format="mp3_44100_128"
+        )
+        
+        # Collect audio bytes from generator
+        audio_bytes = b"".join(audio_generator)
+        
+        # Store audio with unique ID
+        audio_id = str(uuid.uuid4())
+        audio_storage[audio_id] = audio_bytes
+        
+        return audio_id
+    except Exception as e:
+        print(f"TTS Error: {e}")
+        return None
 
 
 def judge_conversation(conversation_log: list) -> dict:
@@ -248,6 +294,25 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/audio/<audio_id>')
+def serve_audio(audio_id):
+    """Serve generated audio file."""
+    if audio_id in audio_storage:
+        audio_bytes = audio_storage[audio_id]
+        return send_file(
+            io.BytesIO(audio_bytes),
+            mimetype='audio/mpeg',
+            as_attachment=False
+        )
+    return "Audio not found", 404
+
+
+@app.route('/audio-sequence')
+def get_audio_sequence():
+    """Return the list of audio IDs for the full conversation."""
+    return jsonify({"audio_ids": audio_sequence})
+
+
 @app.route('/reset', methods=['POST'])
 def reset():
     """Reset the training state."""
@@ -267,6 +332,10 @@ def reset():
     current_state["conversation_log"] = []
     current_state["attempt"] = 0
     current_state["is_running"] = False
+    
+    # Clear audio storage
+    audio_storage.clear()
+    audio_sequence.clear()
     
     return '''
     <div id="conversation-area" class="conversation-area">
@@ -339,13 +408,21 @@ def start_training():
             defaulter_messages = [{"role": "system", "content": current_state["defaulter_prompt"]}]
             conversation_log = []
             
+            # Clear audio sequence for this attempt
+            audio_sequence.clear()
+            
             # Collector starts
             collector_response = get_response(DEBT_COLLECTOR_MODEL, collector_messages)
-            conversation_log.append({"role": "collector", "content": collector_response})
+            conversation_log.append({"role": "Debt Collector Agent", "content": collector_response})
+            
+            # Generate TTS for collector
+            collector_audio_id = generate_tts(collector_response, COLLECTOR_VOICE_ID)
+            if collector_audio_id:
+                audio_sequence.append(collector_audio_id)
             
             yield f'''
             <div class="message collector" hx-swap-oob="beforeend:#conversation-area">
-                <div class="message-header"><span class="icon">🏦</span> Debt Collector</div>
+                <div class="message-header"><span class="icon">🏦</span> Debt Collector Agent</div>
                 <div class="message-content">{collector_response}</div>
             </div>
             '''
@@ -359,6 +436,11 @@ def start_training():
                 defaulter_response = get_response(DEFAULTER_MODEL, defaulter_messages)
                 conversation_log.append({"role": "customer", "content": defaulter_response})
                 
+                # Generate TTS for defaulter
+                defaulter_audio_id = generate_tts(defaulter_response, CUSTOMER_VOICE_ID)
+                if defaulter_audio_id:
+                    audio_sequence.append(defaulter_audio_id)
+                
                 yield f'''
                 <div class="message defaulter" hx-swap-oob="beforeend:#conversation-area">
                     <div class="message-header"><span class="icon">👤</span> Defaulter ({current_state["config"]["customer_name"]})</div>
@@ -371,11 +453,16 @@ def start_training():
                 
                 # Collector responds
                 collector_response = get_response(DEBT_COLLECTOR_MODEL, collector_messages)
-                conversation_log.append({"role": "collector", "content": collector_response})
+                conversation_log.append({"role": "Debt Collector Agent", "content": collector_response})
+                
+                # Generate TTS for collector
+                collector_audio_id = generate_tts(collector_response, COLLECTOR_VOICE_ID)
+                if collector_audio_id:
+                    audio_sequence.append(collector_audio_id)
                 
                 yield f'''
                 <div class="message collector" hx-swap-oob="beforeend:#conversation-area">
-                    <div class="message-header"><span class="icon">🏦</span> Debt Collector</div>
+                    <div class="message-header"><span class="icon">🏦</span> Debt Collector Agent</div>
                     <div class="message-content">{collector_response}</div>
                 </div>
                 '''
