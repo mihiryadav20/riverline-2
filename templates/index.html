@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riverline VA Training</title>
+    <title>Riverline Voice Agent Training</title>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
         * {
@@ -118,6 +118,38 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.8; }
+        }
+
+        /* Transcript Button */
+        .btn-transcript {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-transcript:hover {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(139, 92, 246, 0.4);
+        }
+
+        .transcript-actions {
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .transcript-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 10px;
+            text-align: center;
         }
 
         /* Conversation Area */
@@ -399,6 +431,122 @@
             overflow-y: auto;
         }
 
+        /* TTS Status */
+        .tts-status {
+            margin: 15px 0;
+        }
+
+        .tts-generating {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #1a1a2e, #0a0a1a);
+            border: 1px solid #6366f1;
+            border-radius: 10px;
+            color: #a5b4fc;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .tts-complete {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #1a2e1f, #0a1a0f);
+            border: 1px solid #10b981;
+            border-radius: 10px;
+            color: #6ee7b7;
+            font-size: 1rem;
+            margin: 15px 0;
+        }
+
+        /* Successful Conversation Section */
+        .successful-conversation {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f2a1f, #0a1a0f);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+        }
+
+        .successful-conversation h4 {
+            color: #34d399;
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #10b98140;
+        }
+
+        .successful-conversation .message {
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .successful-conversation .message.playing {
+            border: 2px solid #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+            transform: scale(1.02);
+        }
+
+        /* Audio Conversation Section */
+        .audio-conversation {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e, #0a0a1a);
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+        }
+
+        .audio-conversation h4 {
+            color: #a5b4fc;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        /* Play Button */
+        .play-btn {
+            background: #10b981;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: auto;
+            transition: all 0.2s ease;
+        }
+
+        .play-btn:hover {
+            background: #059669;
+            transform: scale(1.1);
+        }
+
+        .play-btn.playing {
+            background: #ef4444;
+        }
+
+        .play-btn.disabled {
+            background: #374151;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .message.with-audio .message-header {
+            display: flex;
+            align-items: center;
+        }
+
+        .message.with-audio .message-header .icon {
+            margin-right: 8px;
+        }
+
         /* Divider */
         .divider {
             height: 2px;
@@ -580,7 +728,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎯 Riverline <span>VA Training</span></h1>
+            <h1>🎯 Riverline <span>Voice Agent Training</span></h1>
             <p>Self-Improving Debt Collection Agent with AI-Powered Compliance</p>
         </div>
 
@@ -699,6 +847,52 @@
         let audioQueue = [];
         let currentIndex = 0;
         let isPlaying = false;
+        let currentPlayingBtn = null;
+
+        // Play individual audio message
+        function playAudio(audioId, btn) {
+            const player = document.getElementById('audioPlayer');
+            
+            // If this button is already playing, stop it
+            if (currentPlayingBtn === btn && !player.paused) {
+                player.pause();
+                player.currentTime = 0;
+                btn.innerHTML = '▶️';
+                btn.classList.remove('playing');
+                currentPlayingBtn = null;
+                return;
+            }
+            
+            // Stop any currently playing audio
+            if (currentPlayingBtn) {
+                currentPlayingBtn.innerHTML = '▶️';
+                currentPlayingBtn.classList.remove('playing');
+            }
+            
+            // Play the new audio
+            player.src = `/audio/${audioId}`;
+            player.play();
+            
+            btn.innerHTML = '⏹️';
+            btn.classList.add('playing');
+            currentPlayingBtn = btn;
+            
+            player.onended = function() {
+                btn.innerHTML = '▶️';
+                btn.classList.remove('playing');
+                currentPlayingBtn = null;
+            };
+            
+            player.onerror = function() {
+                console.error('Error playing audio:', audioId);
+                btn.innerHTML = '❌';
+                setTimeout(() => {
+                    btn.innerHTML = '▶️';
+                    btn.classList.remove('playing');
+                }, 1000);
+                currentPlayingBtn = null;
+            };
+        }
 
         // Play the full conversation
         async function playFullConversation() {
@@ -743,7 +937,7 @@
             const audioId = audioQueue[currentIndex];
             
             // Highlight current message
-            highlightMessage(currentIndex);
+            highlightMessageByAudioId(audioId);
             
             player.src = `/audio/${audioId}`;
             player.play();
@@ -751,7 +945,7 @@
             player.onended = function() {
                 currentIndex++;
                 // Small delay between messages
-                setTimeout(playNextAudio, 300);
+                setTimeout(playNextAudio, 500);
             };
             
             player.onerror = function() {
@@ -761,15 +955,42 @@
             };
         }
 
-        // Highlight the current message being played
+        // Play entire conversation sequence (auto-play after TTS generation)
+        function playConversationSequence(audioIds) {
+            if (!audioIds || audioIds.length === 0) return;
+            
+            audioQueue = audioIds;
+            currentIndex = 0;
+            isPlaying = true;
+            
+            console.log('🔊 Auto-playing conversation with', audioIds.length, 'messages');
+            playNextAudio();
+        }
+
+        // Highlight message by audio ID
+        function highlightMessageByAudioId(audioId) {
+            // Remove previous highlights
+            document.querySelectorAll('.message.playing').forEach(msg => {
+                msg.classList.remove('playing');
+            });
+            
+            // Find and highlight the message with this audio ID
+            const message = document.querySelector(`.message[data-audio-id="${audioId}"]`);
+            if (message) {
+                message.classList.add('playing');
+                message.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Highlight the current message being played (by index - legacy)
         function highlightMessage(index) {
             // Remove previous highlights
             document.querySelectorAll('.message.playing').forEach(msg => {
                 msg.classList.remove('playing');
             });
             
-            // Get all messages and highlight the current one
-            const messages = document.querySelectorAll('.message');
+            // Get all messages in successful conversation and highlight the current one
+            const messages = document.querySelectorAll('.successful-conversation .message');
             if (messages[index]) {
                 messages[index].classList.add('playing');
                 messages[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -813,16 +1034,68 @@
             btn.disabled = true;
         }
 
-        // Enable play button when training completes
-        document.body.addEventListener('htmx:afterSwap', function(event) {
-            if (event.detail.target.id === 'conversation-area') {
-                const hasEnded = document.querySelector('.success-banner, .failure-banner');
-                const btn = document.getElementById('playConversationBtn');
-                
-                if (hasEnded && btn) {
-                    btn.disabled = false;
+        // Check for audio trigger and auto-play
+        function checkAndPlayAudio() {
+            const trigger = document.getElementById('audio-trigger');
+            if (trigger) {
+                const audioIdsStr = trigger.getAttribute('data-audio-ids');
+                console.log('🎯 Found audio-trigger with IDs:', audioIdsStr);
+                if (audioIdsStr) {
+                    try {
+                        // Parse the audio IDs (they're comma-separated quoted strings)
+                        const audioIds = audioIdsStr.split(',').map(id => id.replace(/"/g, '').trim()).filter(id => id);
+                        if (audioIds.length > 0) {
+                            console.log('🔊 Auto-playing conversation with', audioIds.length, 'messages');
+                            // Small delay to ensure UI is ready
+                            setTimeout(() => {
+                                playConversationSequence(audioIds);
+                            }, 1000);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing audio IDs:', e);
+                    }
                 }
+                // Remove trigger to prevent re-playing
+                setTimeout(() => {
+                    if (trigger && trigger.parentNode) {
+                        trigger.remove();
+                    }
+                }, 2000);
             }
+        }
+
+        // Also use MutationObserver to catch dynamically added elements
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) {
+                        // Check for audio trigger
+                        if (node.id === 'audio-trigger') {
+                            console.log('✅ Detected audio-trigger element');
+                            checkAndPlayAudio();
+                        } else if (node.querySelector && node.querySelector('#audio-trigger')) {
+                            console.log('✅ Detected audio-trigger inside element');
+                            checkAndPlayAudio();
+                        }
+                    }
+                });
+            });
+        });
+
+        // Start observing immediately
+        observer.observe(document.body, { childList: true, subtree: true });
+
+        // Also listen for HTMX events
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            console.log('📡 HTMX afterSwap event fired');
+            // Check if audio-trigger was just added
+            setTimeout(checkAndPlayAudio, 100);
+        });
+
+        // Check on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ DOM Content Loaded');
+            checkAndPlayAudio();
         });
     </script>
 </body>

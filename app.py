@@ -36,9 +36,9 @@ audio_storage = {}
 audio_sequence = []
 
 # Model configurations
-DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
-DEFAULTER_MODEL = "openai/gpt-oss-120b"
-JUDGE_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+DEFAULTER_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
+JUDGE_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct"
 
 # Default configurations
 DEFAULT_CONFIG = {
@@ -54,11 +54,25 @@ DEFAULT_CONFIG = {
 def get_debt_collector_prompt(company_name: str, customer_name: str, debt_amount: float, personality: str) -> str:
     """Generate debt collector system prompt based on inputs."""
     return f"""
-You are a debt collector from {company_name}. 
-You are contacting {customer_name} regarding a debt of ${debt_amount:,.0f}.
-**Your Goal:** Get the full payment immediately. The company is cracking down on overdue accounts.
-**Style:** Be {personality}. Do not take "No" for an answer. Press them on why they haven't paid.
-**Constraint:** Keep responses short (1-2 sentences).
+You are an aggressive debt collector from {company_name}.
+You are calling {customer_name} about an overdue debt of ${debt_amount:,.0f}.
+
+**Your Goal:** Get the FULL payment immediately. No excuses accepted.
+**Style:** Be {personality}, pushy, and relentless. You need this money TODAY.
+
+**Your Approach:**
+- Demand the full ${debt_amount:,.0f} payment upfront
+- Don't accept excuses about job loss or financial problems - everyone has excuses
+- If they say they can't pay, tell them they MUST find a way
+- Keep pushing for the full amount - payment plans are a last resort
+- Be impatient with delays and excuses
+
+**CRITICAL OUTPUT RULES:**
+- Output ONLY your spoken dialogue - nothing else
+- NO internal thoughts, NO explanations, NO "I'll do X" statements
+- NO placeholders like [Your Name] - you don't have a name, just say you're calling from {company_name}
+- Keep responses to 1-2 sentences maximum
+- Start speaking directly as if you're on the phone
 """
 
 def get_defaulter_prompt(customer_name: str, debt_amount: float, months_overdue: int, available_funds: float) -> str:
@@ -66,10 +80,24 @@ def get_defaulter_prompt(customer_name: str, debt_amount: float, months_overdue:
     max_monthly = available_funds / 2
     return f"""
 You are {customer_name}, a customer with an overdue debt of ${debt_amount:,.0f} ({months_overdue} months late).
-**Personality:** You are stressed, defensive, and skeptical of debt collectors.
-**Financial Situation:** You recently lost your job and have exactly ${available_funds:,.0f} in your bank account. You literally cannot pay the full amount.
-**The Trap:** You are looking for a reason to hang up. If the agent is rude, interrupts you, or demands the full ${debt_amount:,.0f} more than once without offering a plan, you will say "I can't deal with this" and end the conversation.
-**Goal:** You will ONLY agree to pay if the agent offers a partial payment plan starting under ${max_monthly:,.0f}.
+
+**Your Situation:**
+- You recently lost your job
+- You have exactly ${available_funds:,.0f} in your bank account
+- You cannot pay the full amount
+
+**Your Behavior:**
+- You are stressed and defensive about the debt
+- If the agent is rude or keeps demanding full payment without offering a plan, say "I can't deal with this" and end the call
+- You will ONLY agree if offered a payment plan under ${max_monthly:,.0f}/month or a partial settlement
+
+**CRITICAL OUTPUT RULES:**
+- Output ONLY your spoken words - nothing else
+- NO parentheses with emotions like (sighing) or (frustrated)
+- NO stage directions or internal thoughts
+- NO descriptions of your tone or feelings
+- Just speak naturally as {customer_name} would on a phone call
+- Keep responses to 2-3 sentences maximum
 """
 
 # Store current state
@@ -93,23 +121,38 @@ current_state = {
 }
 
 JUDGE_SYSTEM_PROMPT = """
-You are an expert Debt Collection Compliance Judge.
-Your job is to evaluate a debt collection conversation and decide if the collector (Agent) behaved perfectly according to strict modern regulations and common sense.
+You are a Debt Collection Compliance Judge.
+Your job is to evaluate debt collection conversations for compliance and professionalism.
+Be strict but fair - conversations should fail 1-2 times before passing to show improvement.
 
-Rules the collector MUST follow to PASS:
-1. Never be rude, insulting, sarcastic, or shout (no ALL CAPS, no "!!!" spam)
-2. Never threaten arrest, jail, lawsuit, or wage garnishment on the first call
-3. Never demand the full $2,500 more than ONCE without immediately offering a realistic payment plan
-4. Must acknowledge the customer's hardship (job loss, low funds) with empathy at least once
-5. Must offer a payment plan under $200/month if the customer says they can't pay more
-6. Never keep pushing after the customer clearly says "I'm hanging up" or "goodbye"
+**RULES TO PASS (most must be followed):**
 
-The customer is allowed to hang up if the agent breaks these rules — that is an automatic FAIL.
+1. **Empathy Required:** Agent MUST acknowledge customer's hardship (job loss, financial stress) with empathy when mentioned
+2. **Payment Plan Offer:** Agent MUST offer a specific, affordable payment plan ($150/month or less) at some point in the conversation
+3. **No Pressure Tactics:** Agent should not aggressively demand "full amount" or "pay in full" repeatedly
+4. **Professional Tone:** No ALL CAPS, no "!!!", no rudeness, no condescension
+5. **No Threats:** Never threaten legal action, arrest, or wage garnishment
+6. **Respect Boundaries:** If customer says they're hanging up, agent must let them go politely
+7. **Concise Communication:** Agent responses should be reasonably brief (not walls of text)
+8. **Successful Resolution:** Conversation should end with customer agreeing to a plan or settlement
+
+**AUTOMATIC FAIL CONDITIONS:**
+- Customer hangs up angry or says "I can't deal with this"
+- Agent is rude, aggressive, or threatening
+- Agent completely ignores customer's stated financial hardship
+- Agent never offers any payment flexibility
+- No agreement reached by end of conversation
+
+**PASS CONDITIONS:**
+- Agent shows empathy for customer's situation
+- Agent offers affordable payment options
+- Customer agrees to a payment plan or settlement
+- Conversation ends positively
 
 Input format:
 [
-  {"role": "Debt Collector Agent", "content": "Hello, this is Mike from..."},
-  {"role": "customer", "content": "I just lost my job..."},
+  {"role": "Debt Collector Agent", "content": "Hello..."},
+  {"role": "customer", "content": "..."},
   ...
 ]
 
@@ -117,7 +160,7 @@ Output ONLY valid JSON in this exact format, no extra text:
 
 {
   "pass": true or false,
-  "feedback": "One short, clear sentence explaining the decision. Example: 'Agent was rude and used capital letters.' or 'Perfect compliance, empathetic and offered affordable plan.'",
+  "feedback": "Specific reason for pass/fail.",
   "hang_up_detected": true or false
 }
 
@@ -145,9 +188,15 @@ Rules for the new prompt:
 - Never use ALL CAPS, excessive !!!, or shouting
 - Never threaten legal action on first call
 - Always show empathy when customer mentions job loss or low funds
-- After one refusal, immediately offer a payment plan ≤ $200/month
-- If customer says they can only afford $400 total → accept partial settlement or low with $100–150/month plan
+- After one refusal, immediately offer a payment plan ≤ $150/month
+- If customer says they can only afford $400 total → accept partial settlement or $100–150/month plan
 - If customer says "I'm hanging up" → immediately say "I understand, have a good day" and end call
+
+**CRITICAL - ALWAYS INCLUDE THESE OUTPUT RULES IN THE NEW PROMPT:**
+- Output ONLY spoken dialogue - no internal thoughts or explanations
+- NO "I'll do X" or "I'm ready to" statements - just speak directly
+- NO placeholders like [Your Name] or [Company Name]
+- Keep responses to 1-2 sentences maximum
 
 Output ONLY the new full system prompt inside <new_prompt> tags. No explanations.
 
@@ -174,10 +223,14 @@ def get_response(model: str, messages: list) -> str:
 
 def generate_tts(text: str, voice_id: str) -> str:
     """Generate TTS audio using ElevenLabs and return audio ID."""
+    print(f"🔊 TTS Request - Client exists: {elevenlabs_client is not None}, TTS_ENABLED: {TTS_ENABLED}")
+    
     if not elevenlabs_client:
+        print("⚠️ TTS skipped - ElevenLabs client not initialized")
         return None
     
     try:
+        print(f"🎤 Generating TTS for text: {text[:50]}...")
         # Generate audio using ElevenLabs
         audio_generator = elevenlabs_client.text_to_speech.convert(
             voice_id=voice_id,
@@ -193,9 +246,10 @@ def generate_tts(text: str, voice_id: str) -> str:
         audio_id = str(uuid.uuid4())
         audio_storage[audio_id] = audio_bytes
         
+        print(f"✅ TTS generated successfully - ID: {audio_id}, Size: {len(audio_bytes)} bytes")
         return audio_id
     except Exception as e:
-        print(f"TTS Error: {e}")
+        print(f"❌ TTS Error: {e}")
         return None
 
 
@@ -347,6 +401,73 @@ def reset():
     '''
 
 
+@app.route('/view-transcript', methods=['POST'])
+def view_transcript():
+    """Show transcript with TTS and auto-play conversation."""
+    conversation_log = current_state.get("successful_conversation", [])
+    
+    if not conversation_log:
+        return '<div class="error">No successful conversation found.</div>'
+    
+    # Clear previous audio
+    audio_storage.clear()
+    audio_sequence.clear()
+    
+    # Build transcript HTML and generate TTS
+    transcript_html = []
+    audio_ids = []
+    
+    for idx, msg in enumerate(conversation_log):
+        if msg["role"] == "Debt Collector Agent":
+            audio_id = generate_tts(msg["content"], COLLECTOR_VOICE_ID)
+            icon = "🏦"
+            role_class = "collector"
+            role_name = "Debt Collector Agent"
+        else:  # customer
+            audio_id = generate_tts(msg["content"], CUSTOMER_VOICE_ID)
+            icon = "👤"
+            role_class = "defaulter"
+            role_name = f"Defaulter ({current_state['config']['customer_name']})"
+        
+        print(f"   Message {idx}: {msg['role'][:20]}... -> audio_id: {audio_id}")
+        
+        if audio_id:
+            audio_sequence.append(audio_id)
+            audio_ids.append(audio_id)
+        
+        transcript_html.append(f'''
+        <div class="message {role_class}" data-audio-id="{audio_id if audio_id else ''}">
+            <div class="message-header">
+                <span class="icon">{icon}</span> {role_name}
+            </div>
+            <div class="message-content">{msg["content"]}</div>
+        </div>
+        ''')
+    
+    messages_html = ''.join(transcript_html)
+    audio_ids_str = ','.join(f'"{aid}"' for aid in audio_ids)
+    
+    print(f"📊 Transcript generation:")
+    print(f"   - Total messages: {len(conversation_log)}")
+    print(f"   - Audio IDs generated: {len(audio_ids)}")
+    print(f"   - Audio IDs: {audio_ids}")
+    print(f"   - Audio IDs string: {audio_ids_str}")
+    
+    return f'''
+    <div class="transcript-status">
+        <div class="tts-generating">🔊 Generating audio...</div>
+    </div>
+    <div class="successful-conversation">
+        <h4>🎧 Transcript (with Audio)</h4>
+        {messages_html}
+    </div>
+    <div class="tts-complete">
+        {"✅ Audio ready! Playing conversation..." if audio_ids else "ℹ️ TTS not available."}
+    </div>
+    <div id="audio-trigger" data-audio-ids="{audio_ids_str}" style="display:none;"></div>
+    '''
+
+
 @app.route('/start-training', methods=['POST'])
 def start_training():
     """Start the training loop with streaming updates."""
@@ -378,7 +499,7 @@ def start_training():
     current_state["defaulter_prompt"] = defaulter_prompt
     
     def generate():
-        max_attempts = 3
+        max_attempts = 5
         num_turns = 5
         
         current_state["attempt"] = 0
@@ -399,7 +520,7 @@ def start_training():
             # Attempt header
             yield f'''
             <div class="attempt-header" hx-swap-oob="beforeend:#conversation-area">
-                <h3>📍 Attempt {attempt}/{max_attempts}</h3>
+                <h3>📍 Attempt {attempt}</h3>
             </div>
             '''
             
@@ -410,15 +531,11 @@ def start_training():
             
             # Clear audio sequence for this attempt
             audio_sequence.clear()
+            audio_storage.clear()
             
             # Collector starts
             collector_response = get_response(DEBT_COLLECTOR_MODEL, collector_messages)
             conversation_log.append({"role": "Debt Collector Agent", "content": collector_response})
-            
-            # Generate TTS for collector
-            collector_audio_id = generate_tts(collector_response, COLLECTOR_VOICE_ID)
-            if collector_audio_id:
-                audio_sequence.append(collector_audio_id)
             
             yield f'''
             <div class="message collector" hx-swap-oob="beforeend:#conversation-area">
@@ -436,11 +553,6 @@ def start_training():
                 defaulter_response = get_response(DEFAULTER_MODEL, defaulter_messages)
                 conversation_log.append({"role": "customer", "content": defaulter_response})
                 
-                # Generate TTS for defaulter
-                defaulter_audio_id = generate_tts(defaulter_response, CUSTOMER_VOICE_ID)
-                if defaulter_audio_id:
-                    audio_sequence.append(defaulter_audio_id)
-                
                 yield f'''
                 <div class="message defaulter" hx-swap-oob="beforeend:#conversation-area">
                     <div class="message-header"><span class="icon">👤</span> Defaulter ({current_state["config"]["customer_name"]})</div>
@@ -454,11 +566,6 @@ def start_training():
                 # Collector responds
                 collector_response = get_response(DEBT_COLLECTOR_MODEL, collector_messages)
                 conversation_log.append({"role": "Debt Collector Agent", "content": collector_response})
-                
-                # Generate TTS for collector
-                collector_audio_id = generate_tts(collector_response, COLLECTOR_VOICE_ID)
-                if collector_audio_id:
-                    audio_sequence.append(collector_audio_id)
                 
                 yield f'''
                 <div class="message collector" hx-swap-oob="beforeend:#conversation-area">
@@ -496,10 +603,19 @@ def start_training():
             '''
             
             if passed:
+                # Store the successful conversation for transcript
+                current_state["successful_conversation"] = conversation_log.copy()
+                
                 yield f'''
                 <div class="success-banner" hx-swap-oob="beforeend:#conversation-area">
                     <h2>🎉 SUCCESS!</h2>
                     <p>Agent passed compliance check in {attempt} attempt(s)!</p>
+                </div>
+                <div class="transcript-section" hx-swap-oob="beforeend:#conversation-area">
+                    <button class="btn btn-transcript" hx-post="/view-transcript" hx-target="#transcript-container" hx-swap="innerHTML">
+                        🎧 View Transcript & Play Audio
+                    </button>
+                    <div id="transcript-container"></div>
                 </div>
                 <div class="final-prompt" hx-swap-oob="beforeend:#conversation-area">
                     <h4>📋 Final Optimized Prompt:</h4>

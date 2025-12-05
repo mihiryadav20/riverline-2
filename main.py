@@ -3,6 +3,9 @@ from dotenv import load_dotenv
 import json
 import os
 import google.generativeai as genai
+import uuid
+from elevenlabs.client import ElevenLabs
+import time
 
 load_dotenv()
 
@@ -12,6 +15,16 @@ client = Groq()
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
+
+# Initialize ElevenLabs client for TTS
+elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+elevenlabs_client = None
+if elevenlabs_api_key:
+    elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
+
+# Voice IDs for different speakers
+COLLECTOR_VOICE_ID = "bIHbv24MWmeRgasZH58o"  # Roger
+CUSTOMER_VOICE_ID = "bIHbv24MWmeRgasZH58o"   # Will
 
 # Model configurations
 DEBT_COLLECTOR_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
@@ -331,7 +344,7 @@ def run_training_loop(max_attempts: int = 3, num_turns: int = 5):
     
     for attempt in range(1, max_attempts + 1):
         print(f"\n{'='*60}")
-        print(f"📍 ATTEMPT {attempt}/{max_attempts}")
+        print(f"📍 ATTEMPT {attempt}")
         print(f"{'='*60}\n")
         
         # Run conversation and get judge verdict
@@ -347,6 +360,14 @@ def run_training_loop(max_attempts: int = 3, num_turns: int = 5):
             print("-" * 40)
             print(DEBT_COLLECTOR_SYSTEM)
             print("-" * 40)
+            
+            # Generate TTS for the successful conversation
+            audio_files = generate_tts_for_conversation(conversation_log)
+            
+            # Play the transcript with audio
+            if audio_files:
+                play_transcript_with_audio(conversation_log, audio_files)
+            
             return True, attempt, DEBT_COLLECTOR_SYSTEM
         
         # If failed and not last attempt, optimize
@@ -423,6 +444,85 @@ def get_user_inputs():
         "months_overdue": months_overdue,
         "available_funds": available_funds
     }
+
+
+def generate_tts_for_conversation(conversation_log: list) -> list:
+    """Generate TTS audio for all messages in the conversation."""
+    if not elevenlabs_client:
+        print("⚠️  ElevenLabs client not available. Skipping TTS.")
+        return []
+    
+    print("\n" + "=" * 60)
+    print("🔊 GENERATING AUDIO FOR TRANSCRIPT")
+    print("=" * 60)
+    
+    audio_files = []
+    
+    for idx, msg in enumerate(conversation_log):
+        speaker = "🏦 DEBT COLLECTOR" if msg["role"] == "collector" else "👤 DEFAULTER"
+        voice_id = COLLECTOR_VOICE_ID if msg["role"] == "collector" else CUSTOMER_VOICE_ID
+        
+        try:
+            print(f"\n[{idx + 1}/{len(conversation_log)}] Generating audio for {speaker}...")
+            print(f"    Text: {msg['content'][:60]}...")
+            
+            # Generate audio
+            audio_generator = elevenlabs_client.text_to_speech.convert(
+                voice_id=voice_id,
+                text=msg["content"],
+                model_id="eleven_multilingual_v2",
+                output_format="mp3_44100_128"
+            )
+            
+            # Collect audio bytes
+            audio_bytes = b"".join(audio_generator)
+            
+            # Save to file
+            filename = f"audio_{idx:02d}_{msg['role']}.mp3"
+            with open(filename, 'wb') as f:
+                f.write(audio_bytes)
+            
+            audio_files.append((filename, speaker, msg["content"]))
+            print(f"    ✅ Saved: {filename} ({len(audio_bytes)} bytes)")
+            
+        except Exception as e:
+            print(f"    ❌ Error: {e}")
+    
+    return audio_files
+
+
+def play_transcript_with_audio(conversation_log: list, audio_files: list):
+    """Display transcript and play audio files."""
+    if not audio_files:
+        print("\n⚠️  No audio files to play.")
+        return
+    
+    print("\n" + "=" * 60)
+    print("🎧 PLAYING TRANSCRIPT WITH AUDIO")
+    print("=" * 60)
+    
+    for idx, (filename, speaker, content) in enumerate(audio_files):
+        print(f"\n[{idx + 1}/{len(audio_files)}] {speaker}")
+        print(f"    {content}")
+        print(f"    🎵 Playing: {filename}")
+        
+        # Try to play the audio file
+        try:
+            import subprocess
+            # Try using ffplay (part of ffmpeg)
+            subprocess.run(['ffplay', '-nodisp', '-autoexit', filename], 
+                         capture_output=True, timeout=30)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            try:
+                # Fallback: try using mpg123
+                subprocess.run(['mpg123', filename], 
+                             capture_output=True, timeout=30)
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                print(f"    ⚠️  Could not play audio (ffplay or mpg123 not found)")
+                print(f"    💾 Audio file saved as: {filename}")
+        
+        # Small delay between messages
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":
